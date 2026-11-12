@@ -1,0 +1,54 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+
+  application:
+    name: constructor-kv
+
+  profiles:
+    default: dev
+
+  jpa:
+    open-in-view: false
+
+    hibernate:
+      ddl-auto: validate
+
+    properties:
+      hibernate:
+        default_schema: Konstructor
+        globally_quoted_identifiers: true
+        format_sql: true
+
+  jackson:
+    time-zone: Europe/Moscow
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8091}
+  shutdown: graceful
+
+springdoc:
+  api-docs:
+    path: /api-docs
+
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    ru.constructor: DEBUG
