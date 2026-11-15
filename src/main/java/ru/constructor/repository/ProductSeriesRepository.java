@@ -1,65 +1,40 @@
+
 package ru.constructor.repository;
 
 import ru.constructor.entity.ProductSeriesEntity;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.Repository;
 
 import java.util.List;
 
 /**
- * Репозиторий серий комплектовок.
+ * Репозиторий только для чтения PRODUCT_SERIES.
  *
- * Работает с существующей таблицей PRODUCT_SERIES.
+ * PRODUCT_SERIES относится к конструкторскому блоку.
+ * Изменение исходных данных через этот репозиторий запрещено.
+ *
+ * Доступны исключительно операции чтения.
  */
-@Repository
 public interface ProductSeriesRepository
-        extends JpaRepository<ProductSeriesEntity, Integer> {
+        extends Repository<ProductSeriesEntity, Integer> {
 
     /**
-     * Получить серии одного элемента структуры.
+     * Получить серии одного исходного элемента.
      *
-     * @param ssid ID элемента структуры
+     * @param ssid идентификатор исходного элемента
      * @return серии в порядке возрастания MINI
      */
-    List<ProductSeriesEntity> findBySsidOrderByMiniAsc(Integer ssid);
+    List<ProductSeriesEntity> findBySsidOrderByMiniAsc(
+            Integer ssid
+    );
 
     /**
-     * Получить серии нескольких элементов структуры.
+     * Получить серии нескольких исходных элементов.
      *
-     * Используется для пакетного чтения.
-     *
-     * @param ssids идентификаторы элементов структуры
+     * @param ssids идентификаторы исходных элементов
      * @return найденные серии
      */
     List<ProductSeriesEntity> findBySsidInOrderBySsidAscMiniAsc(
             List<Integer> ssids
-    );
-
-    /**
-     * Удалить серии элементов конкретной КВ.
-     *
-     * Удаляются только те записи PRODUCT_SERIES,
-     * SSID которых соответствует ID элементов структуры
-     * указанной комплектовки.
-     *
-     * Исходные серии PDM не должны затрагиваться.
-     *
-     * @param komplektovkaId ID комплектовки
-     */
-    @Modifying
-    @Query(value = """
-            DELETE FROM "Konstructor"."PRODUCT_SERIES" ps
-            WHERE ps."SSID" IN (
-                SELECT sk."ID"
-                FROM "Konstructor"."STRUCTURA_KOMPLECTOVKI" sk
-                WHERE sk."ID_KOMLECTOVKA" = :komplektovkaId
-            )
-            """, nativeQuery = true)
-    void deleteByKomplektovkaId(
-            @Param("komplektovkaId") Integer komplektovkaId
     );
 }

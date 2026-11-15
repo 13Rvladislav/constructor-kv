@@ -1,3 +1,4 @@
+
 package ru.constructor.service;
 
 import jakarta.persistence.EntityManager;
@@ -16,12 +17,9 @@ import ru.constructor.dto.response.AssemblyHierarchyResponseDto;
 import ru.constructor.dto.response.KomplektovkaFormResponseDto;
 
 import ru.constructor.entity.KomplektovkaEntity;
-import ru.constructor.entity.ProductSeriesEntity;
 import ru.constructor.entity.StructuraKomplektovkiEntity;
-import ru.constructor.entity.StructuraKomplektovkiId;
 
 import ru.constructor.repository.KomplektovkaRepository;
-import ru.constructor.repository.ProductSeriesRepository;
 import ru.constructor.repository.SlZapiskaRepository;
 import ru.constructor.repository.Specif22Repository;
 import ru.constructor.repository.StructuraKomplektovkiRepository;
@@ -35,75 +33,39 @@ import java.util.Map;
 /**
  * Сервис формирования комплектовок.
  *
- * Основные этапы:
+ * Исходные таблицы конструкторского блока используются
+ * исключительно для чтения.
  *
- * 1. Проверка согласования служебной записки.
- * 2. Проверка принадлежности сборки служебной записке.
- * 3. Проверка отсутствия действующей КВ.
- * 4. Получение рассчитанной структуры сборки.
- * 5. Создание записи KOMPLECTOVKA.
- * 6. Подготовка дерева элементов структуры.
- * 7. Получение ID из sequence.
- * 8. Сохранение STRUCTURA_KOMPLECTOVKI.
- * 9. Сохранение серий в PRODUCT_SERIES.
+ * При формировании КВ запись выполняется только в:
+ * - KOMPLECTOVKA;
+ * - STRUCTURA_KOMPLECTOVKI.
  *
- * Все операции выполняются в одной транзакции.
+ * PRODUCT_SERIES не изменяется.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class KomplektovkaFormService {
 
-    /**
-     * Начальный статус записи КВ.
-     *
-     * Соответствует старой реализации.
-     */
     private static final short DEFAULT_STATUS = 0;
 
-    /**
-     * Подразделение корневой сборки.
-     */
     private static final int DEFAULT_ASSEMBLY_DIVISION = 3;
 
-    /**
-     * Репозиторий комплектовок.
-     */
     private final KomplektovkaRepository komplektovkaRepository;
 
-    /**
-     * Репозиторий структуры КВ.
-     */
     private final StructuraKomplektovkiRepository structureRepository;
 
-    /**
-     * Репозиторий серий.
-     */
-    private final ProductSeriesRepository productSeriesRepository;
-
-    /**
-     * Репозиторий служебных записок.
-     */
     private final SlZapiskaRepository slZapiskaRepository;
 
-    /**
-     * Репозиторий исходных спецификаций.
-     */
     private final Specif22Repository specif22Repository;
 
-    /**
-     * Сервис предварительного просмотра структуры сборки.
-     */
     private final AssemblyPreviewService assemblyPreviewService;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     /**
-     * Сформировать комплектовку.
-     *
-     * @param request параметры формирования
-     * @return результат создания КВ
+     * Формирует комплектовку.
      */
     @Transactional
     public KomplektovkaFormResponseDto formKomplektovka(
@@ -119,17 +81,8 @@ public class KomplektovkaFormService {
                 request.formedBy()
         );
 
-        /*
-         * Блокируем параллельное формирование одной и той же КВ.
-         *
-         * Блокировка автоматически снимается при завершении
-         * текущей транзакции.
-         */
         acquireFormationLock(slZapiskaId, specifId);
 
-        /*
-         * Проверяем, что служебная записка согласована.
-         */
         if (!slZapiskaRepository.isSlZapiskaAgreed(slZapiskaId)) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -137,9 +90,6 @@ public class KomplektovkaFormService {
             );
         }
 
-        /*
-         * Проверяем принадлежность сборки служебной записке.
-         */
         if (!slZapiskaRepository.isAssemblyBelongsToSlZapiska(
                 slZapiskaId,
                 specifId
@@ -150,9 +100,6 @@ public class KomplektovkaFormService {
             );
         }
 
-        /*
-         * Проверяем, что действующая КВ ещё не создана.
-         */
         if (komplektovkaRepository
                 .findActiveBySlZapiskaAndSpecif(slZapiskaId, specifId)
                 .isPresent()) {
@@ -163,18 +110,12 @@ public class KomplektovkaFormService {
             );
         }
 
-        /*
-         * Получаем исходную спецификацию.
-         */
         var rootSpecif = specif22Repository.findById(specifId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Спецификация не найдена: " + specifId
                 ));
 
-        /*
-         * Получаем структуру, уже рассчитанную сервисом preview.
-         */
         List<AssemblyHierarchyResponseDto> hierarchy =
                 assemblyPreviewService.getAssemblyPreview(specifId);
 
@@ -185,9 +126,6 @@ public class KomplektovkaFormService {
             );
         }
 
-        /*
-         * Создаём основную запись КВ.
-         */
         LocalDateTime now = LocalDateTime.now();
 
         KomplektovkaEntity komplektovka = new KomplektovkaEntity();
@@ -198,9 +136,6 @@ public class KomplektovkaFormService {
         komplektovka.setStatus(DEFAULT_STATUS);
         komplektovka.setFormedBy(request.formedBy());
 
-        /*
-         * Формируем обозначение по старой бизнес-логике.
-         */
         String designation = rootSpecif.getObozn();
 
         if (designation == null || designation.isBlank()) {
@@ -209,20 +144,11 @@ public class KomplektovkaFormService {
 
         komplektovka.setDesign("КВ-" + designation);
 
-        /*
-         * Сохраняем запись и получаем её ID.
-         */
         KomplektovkaEntity savedKomplektovka =
                 komplektovkaRepository.save(komplektovka);
 
         Integer komplektovkaId = savedKomplektovka.getId();
 
-        /*
-         * Подготавливаем дерево для сохранения.
-         *
-         * Если узел не подходит по сериям, он и его потомки
-         * не попадают в структуру комплектовки.
-         */
         List<StructureNodeData> nodes = new ArrayList<>();
 
         for (AssemblyHierarchyResponseDto root : hierarchy) {
@@ -236,9 +162,6 @@ public class KomplektovkaFormService {
             );
         }
 
-        /*
-         * Получаем ID для всех элементов структуры одним запросом.
-         */
         List<Long> generatedIds =
                 structureRepository.getNextIds(nodes.size());
 
@@ -248,9 +171,6 @@ public class KomplektovkaFormService {
             );
         }
 
-        /*
-         * Строим JPA-сущности с составным первичным ключом.
-         */
         List<StructuraKomplektovkiEntity> structureEntities =
                 buildStructureEntities(
                         nodes,
@@ -259,29 +179,13 @@ public class KomplektovkaFormService {
                         specifId
                 );
 
-        /*
-         * Сохраняем структуру.
-         */
         structureRepository.saveAll(structureEntities);
 
-        /*
-         * Сохраняем серии.
-         *
-         * SSID указывает на ID сохранённого элемента структуры КВ.
-         */
-        List<ProductSeriesEntity> seriesEntities =
-                buildProductSeries(nodes, generatedIds);
-
-        if (!seriesEntities.isEmpty()) {
-            productSeriesRepository.saveAll(seriesEntities);
-        }
-
         log.info(
-                "КВ сформирована: id={}, designation={}, structureElements={}, series={}",
+                "КВ сформирована: id={}, designation={}, structureElements={}",
                 komplektovkaId,
                 savedKomplektovka.getDesign(),
-                structureEntities.size(),
-                seriesEntities.size()
+                structureEntities.size()
         );
 
         return new KomplektovkaFormResponseDto(
@@ -295,10 +199,7 @@ public class KomplektovkaFormService {
     }
 
     /**
-     * Получить advisory-блокировку PostgreSQL.
-     *
-     * Используется для защиты от одновременного создания
-     * одинаковой комплектовки несколькими запросами.
+     * Блокировка параллельного формирования одной КВ.
      */
     private void acquireFormationLock(
             Integer slZapiskaId,
@@ -314,20 +215,16 @@ public class KomplektovkaFormService {
     }
 
     /**
-     * Рекурсивно собирает подходящие элементы дерева.
+     * Собирает подходящие узлы дерева.
      *
-     * Ссылка на родителя сохраняется как ссылка на временный объект.
-     * Благодаря этому после получения ID можно корректно заполнить PARENT.
+     * Если узел не подходит по сериям, он и его потомки
+     * не попадают в структуру комплектовки.
      */
     private void collectSuitableNodes(
             AssemblyHierarchyResponseDto dto,
             StructureNodeData parent,
             List<StructureNodeData> result
     ) {
-        /*
-         * Не сохраняем узел и его потомков,
-         * если он не подходит по серийности.
-         */
         if (Boolean.FALSE.equals(dto.fitsSeries())) {
             return;
         }
@@ -336,9 +233,6 @@ public class KomplektovkaFormService {
 
         result.add(current);
 
-        /*
-         * Обрабатываем дочерние элементы.
-         */
         if (dto.children() != null) {
             for (AssemblyHierarchyResponseDto child : dto.children()) {
                 collectSuitableNodes(child, current, result);
@@ -347,12 +241,10 @@ public class KomplektovkaFormService {
     }
 
     /**
-     * Создаёт сущности структуры комплектовки.
+     * Создаёт сущности STRUCTURA_KOMPLECTOVKI.
      *
-     * ID родителя определяется по уже назначенным ID временных узлов.
-     *
-     * ВАЖНО:
-     * ID_SPECIF соответствует node.id, как в старой реализации.
+     * Для текущей Entity с @IdClass все шесть компонентов
+     * первичного ключа заполняются непосредственно.
      */
     private List<StructuraKomplektovkiEntity> buildStructureEntities(
             List<StructureNodeData> nodes,
@@ -360,9 +252,6 @@ public class KomplektovkaFormService {
             Integer komplektovkaId,
             Integer rootSpecifId
     ) {
-        /*
-         * Сопоставление временного объекта и его ID.
-         */
         Map<StructureNodeData, Integer> assignedIds =
                 new IdentityHashMap<>();
 
@@ -382,11 +271,6 @@ public class KomplektovkaFormService {
 
             Integer id = assignedIds.get(nodeData);
 
-            /*
-             * ID родительского элемента структуры КВ.
-             *
-             * Для корневого элемента PARENT = NULL.
-             */
             Integer parentId = nodeData.parent() == null
                     ? null
                     : assignedIds.get(nodeData.parent());
@@ -394,34 +278,24 @@ public class KomplektovkaFormService {
             StructuraKomplektovkiEntity entity =
                     new StructuraKomplektovkiEntity();
 
-            /*
-             * Составной первичный ключ.
-             *
-             * Все шесть компонентов соответствуют PK таблицы.
-             */
-            StructuraKomplektovkiId primaryKey =
-                    new StructuraKomplektovkiId();
+            entity.setId(id);
+            entity.setIdKomlectovka(komplektovkaId);
+            entity.setIdSpecif(dto.id());
 
-            primaryKey.setId(id);
-            primaryKey.setIdKomlectovka(komplektovkaId);
-            primaryKey.setIdSpecif(dto.id());
-            primaryKey.setIdDivision(
+            entity.setIdDivision(
                     dto.idDivision() != null
                             ? dto.idDivision()
                             : DEFAULT_ASSEMBLY_DIVISION
             );
-            primaryKey.setIdRootSpecif(rootSpecifId);
-            primaryKey.setIdOriginalStructure(
+
+            entity.setIdRootSpecif(rootSpecifId);
+
+            entity.setIdOriginalStructure(
                     dto.structureId() != null
                             ? dto.structureId()
                             : 0
             );
 
-            entity.setId(primaryKey);
-
-            /*
-             * Данные элемента.
-             */
             entity.setDesign(dto.obozn());
             entity.setName(dto.naim());
 
@@ -454,55 +328,8 @@ public class KomplektovkaFormService {
     }
 
     /**
-     * Создаёт записи серий для сохранённых элементов структуры.
-     *
-     * Для каждого узла:
-     * - берёт серии из DTO;
-     * - присваивает SSID ID сохранённого элемента структуры;
-     * - переносит диапазон, количество, массу и габариты.
-     */
-    private List<ProductSeriesEntity> buildProductSeries(
-            List<StructureNodeData> nodes,
-            List<Long> generatedIds
-    ) {
-        List<ProductSeriesEntity> result = new ArrayList<>();
-
-        for (int i = 0; i < nodes.size(); i++) {
-
-            AssemblyHierarchyResponseDto dto = nodes.get(i).dto();
-
-            if (dto.series() == null || dto.series().isEmpty()) {
-                continue;
-            }
-
-            Integer structureId = Math.toIntExact(generatedIds.get(i));
-
-            for (AssemblyHierarchyResponseDto.SeriesInfo seriesInfo : dto.series()) {
-
-                ProductSeriesEntity series = new ProductSeriesEntity();
-
-                /*
-                 * Связь с элементом STRUCTURA_KOMPLECTOVKI.
-                 */
-                series.setSsid(structureId);
-
-                series.setMini(seriesInfo.mini());
-                series.setMaxi(seriesInfo.maxi());
-                series.setQuantity(seriesInfo.quantity());
-                series.setMassa(seriesInfo.massa());
-                series.setDimensions(seriesInfo.dimensions());
-
-                result.add(series);
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * Временный узел для подготовки структуры.
-     *
-     * Не является Entity и не сохраняется напрямую в БД.
+     * Временный узел дерева.
+     * Не является JPA-сущностью.
      */
     private record StructureNodeData(
             AssemblyHierarchyResponseDto dto,
