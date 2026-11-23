@@ -14,37 +14,18 @@ import java.util.List;
  * Репозиторий структуры комплектовок.
  *
  * Таблица STRUCTURA_KOMPLECTOVKI имеет составной первичный ключ:
- *
- * ID
- * ID_KOMLECTOVKA
- * ID_SPECIF
- * ID_DIVISION
- * ID_ROOT_SPECIF
- * ID_ORIGINAL_STRUCTURE
- *
- * ID генерируется существующей PostgreSQL sequence.
- * Остальные компоненты ключа задаются при сохранении.
+ * ID, ID_KOMLECTOVKA, ID_SPECIF, ID_DIVISION,
+ * ID_ROOT_SPECIF, ID_ORIGINAL_STRUCTURE.
  */
 @Repository
 public interface StructuraKomplektovkiRepository
         extends JpaRepository<StructuraKomplektovkiEntity, StructuraKomplektovkiId> {
 
-    /**
-     * Получить ID из sequence для одного элемента.
-     *
-     * @return следующий идентификатор
-     */
     @Query(value = """
             SELECT nextval('"Konstructor"."STRUCTURA_KOMPLECTOVKI_ID_seq"')
             """, nativeQuery = true)
     Long getNextId();
 
-    /**
-     * Получить несколько ID одним запросом.
-     *
-     * @param count количество идентификаторов
-     * @return список идентификаторов
-     */
     @Query(value = """
             SELECT nextval('"Konstructor"."STRUCTURA_KOMPLECTOVKI_ID_seq"')
             FROM generate_series(1, :count)
@@ -53,10 +34,18 @@ public interface StructuraKomplektovkiRepository
 
     /**
      * Получить все элементы структуры конкретной КВ.
-     *
-     * @param komplektovkaId ID комплектовки
-     * @return элементы структуры
      */
     List<StructuraKomplektovkiEntity>
     findByIdKomlectovkaOrderByLevelAscIdAsc(Integer komplektovkaId);
+
+    /**
+     * Найти строки сформированной структуры, связанные
+     * с исходными строками STRUCTURE_SPECIF.
+     *
+     * Нужен для перехода:
+     * ID_ORIGINAL_STRUCTURE -> ID -> PRODUCT_SERIES.SSID.
+     */
+    List<StructuraKomplektovkiEntity> findByIdOriginalStructureIn(
+            List<Integer> originalStructureIds
+    );
 }
