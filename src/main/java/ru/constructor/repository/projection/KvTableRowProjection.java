@@ -1,11 +1,11 @@
+
 package ru.constructor.repository.projection;
 
 import java.time.LocalDateTime;
 
-/**
- * Типизированная проекция строки сводной таблицы КВ.
- */
 public interface KvTableRowProjection {
+
+    Integer getNumber();
 
     Integer getSlZapiskaId();
 
