@@ -1,15 +1,17 @@
+
 package ru.constructor.dto.response;
 
 import java.util.List;
 
-/**
- * Ответ со сводной таблицей комплектовочных ведомостей.
- */
 public record KvTableResponseDto(
         GroupInfo groupInfo,
         List<KvTableRowDto> rows,
         int totalRows,
-        String version
+        String version,
+        int page,
+        int size,
+        int totalPages,
+        List<String> statusOptions
 ) {
 
     public static KvTableResponseDto empty(GroupInfo groupInfo) {
@@ -17,7 +19,11 @@ public record KvTableResponseDto(
                 groupInfo,
                 List.of(),
                 0,
-                "1.0"
+                "1.0",
+                0,
+                20,
+                0,
+                List.of()
         );
     }
 
