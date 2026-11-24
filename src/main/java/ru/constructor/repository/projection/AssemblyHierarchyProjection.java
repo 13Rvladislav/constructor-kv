@@ -23,4 +23,6 @@ public interface AssemblyHierarchyProjection {
     Integer getIzdelieId();
 
     Integer getIdDivision();
+
+    String getDivisionName();
 }

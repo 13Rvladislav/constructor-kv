@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface AssemblyPreviewRepository
@@ -19,9 +20,10 @@ public interface AssemblyPreviewRepository
     /**
      * Получает иерархию сборок от корневой спецификации.
      *
-     * LINK_IMPLEMETATION учитывается так же, как в старой реализации:
-     * если у дочерней спецификации есть ссылка, используется ID связанной
-     * спецификации.
+     * Название подразделения берётся непосредственно из DIVISION.NAME.
+     *
+     * Для корневой спецификации используется подразделение ID = 3,
+     * для вложенных сборок — ID_DIVISION из STRUCTURE_SPECIF.
      */
     @Query(value = """
             WITH RECURSIVE assembly_hierarchy AS (
@@ -44,6 +46,7 @@ public interface AssemblyPreviewRepository
 
                     izd."ID" AS izdelie_id,
                     3 AS id_division,
+                    root_division."NAME" AS division_name,
 
                     ARRAY[s."ID"] AS path_ids
 
@@ -51,6 +54,9 @@ public interface AssemblyPreviewRepository
 
                 LEFT JOIN "Konstructor"."IZDELIE" izd
                     ON izd."ID" = s."ID_IZDELIE"
+
+                LEFT JOIN "Konstructor"."DIVISION" root_division
+                    ON root_division."ID" = 3
 
                 WHERE s."ID" = :specifId
 
@@ -79,6 +85,8 @@ public interface AssemblyPreviewRepository
 
                     st."ID_DIVISION" AS id_division,
 
+                    d."NAME" AS division_name,
+
                     parent.path_ids ||
                         COALESCE(child."LINK_IMPLEMETATION", child."ID")
                         AS path_ids
@@ -94,6 +102,9 @@ public interface AssemblyPreviewRepository
 
                 LEFT JOIN "Konstructor"."SPECIF22" linked
                     ON linked."ID" = child."LINK_IMPLEMETATION"
+
+                LEFT JOIN "Konstructor"."DIVISION" d
+                    ON d."ID" = st."ID_DIVISION"
 
                 WHERE st."OBOZN" IS NOT NULL
                   AND btrim(st."OBOZN") <> ''
@@ -115,7 +126,8 @@ public interface AssemblyPreviewRepository
                 structure_id AS "structureId",
                 izdelie_number AS "izdelieNumber",
                 izdelie_id AS "izdelieId",
-                id_division AS "idDivision"
+                id_division AS "idDivision",
+                division_name AS "divisionName"
 
             FROM assembly_hierarchy
 
@@ -128,13 +140,15 @@ public interface AssemblyPreviewRepository
     /**
      * Загружает содержимое сразу для всех сборок.
      *
-     * ID_SPECIF здесь — ID спецификации-владельца структуры.
+     * ID_SPECIF — ID спецификации-владельца структуры.
+     * Название подразделения берётся из DIVISION.NAME.
      */
     @Query(value = """
             SELECT
                 st."ID" AS "id",
                 st."ID_SPECIF" AS "idSpecif",
                 st."ID_DIVISION" AS "idDivision",
+                d."NAME" AS "divisionName",
                 st."OBOZN" AS "obozn",
                 st."NAIM" AS "naim",
                 COALESCE(st."QUANTITY", 1) AS "quantity",
@@ -145,6 +159,9 @@ public interface AssemblyPreviewRepository
                 st."ZONE" AS "zone"
 
             FROM "Konstructor"."STRUCTURE_SPECIF" st
+
+            LEFT JOIN "Konstructor"."DIVISION" d
+                ON d."ID" = st."ID_DIVISION"
 
             WHERE st."ID_SPECIF" IN (:assemblyIds)
               AND st."ID_DIVISION" IN (4, 5, 6, 7)
@@ -184,5 +201,18 @@ public interface AssemblyPreviewRepository
             """, nativeQuery = true)
     List<ProductSeriesProjection> findSeriesByStructureIds(
             @Param("structureIds") List<Integer> structureIds
+    );
+
+    /**
+     * Получить название подразделения по ID.
+     * Используется для резервного корневого узла.
+     */
+    @Query(value = """
+            SELECT d."NAME"
+            FROM "Konstructor"."DIVISION" d
+            WHERE d."ID" = :divisionId
+            """, nativeQuery = true)
+    Optional<String> findDivisionNameById(
+            @Param("divisionId") Integer divisionId
     );
 }

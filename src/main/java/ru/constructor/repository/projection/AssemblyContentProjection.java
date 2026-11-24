@@ -8,6 +8,8 @@ public interface AssemblyContentProjection {
 
     Integer getIdDivision();
 
+    String getDivisionName();
+
     String getObozn();
 
     String getNaim();

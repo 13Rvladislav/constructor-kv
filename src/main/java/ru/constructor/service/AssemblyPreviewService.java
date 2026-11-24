@@ -33,10 +33,10 @@ public class AssemblyPreviewService {
     /**
      * Получить дерево предпросмотра сборки.
      *
-     * Выполняется не более трёх пакетных запросов:
+     * Выполняется не более трёх основных пакетных запросов:
      *
-     * 1. Иерархия сборок.
-     * 2. Содержимое всех сборок.
+     * 1. Иерархия сборок с названиями подразделений.
+     * 2. Содержимое всех сборок с названиями подразделений.
      * 3. Серии всех найденных структур.
      */
     public List<AssemblyHierarchyResponseDto> getAssemblyPreview(Integer specifId) {
@@ -72,16 +72,22 @@ public class AssemblyPreviewService {
             node.parentId = row.getParentId();
             node.obozn = defaultValue(row.getObozn(), "Без обозн.");
             node.naim = defaultValue(row.getNaim(), "Без названия");
+
             node.quantity = row.getQuantity() != null
                     ? row.getQuantity()
                     : 1;
+
             node.massa = row.getMassa() != null
                     ? row.getMassa()
                     : 0.0;
+
             node.idDivision = row.getIdDivision();
+            node.divisionName = row.getDivisionName();
+
             node.level = row.getLevel() != null
                     ? row.getLevel()
                     : 0;
+
             node.structureId = row.getStructureId();
             node.izdelieNumber = row.getIzdelieNumber();
             node.izdelieId = row.getIzdelieId();
@@ -344,6 +350,8 @@ public class AssemblyPreviewService {
                 : 0.0;
 
         node.idDivision = row.getIdDivision();
+        node.divisionName = row.getDivisionName();
+
         node.material = row.getMaterial();
 
         node.note = row.getPos() != null
@@ -362,12 +370,7 @@ public class AssemblyPreviewService {
         );
 
         /*
-         * Сохраняем старую логику:
-         * если у элемента есть серии, но номер изделия не попадает
-         * ни в один диапазон, элемент не подходит.
-         *
-         * В отличие от проверки сборки, здесь null productNumber
-         * при наличии серий не считается автоматическим совпадением.
+         * Сохраняем старую логику проверки серийности элементов.
          */
         if (node.series.isEmpty()) {
 
@@ -503,6 +506,7 @@ public class AssemblyPreviewService {
                 node.quantity,
                 node.massa,
                 node.idDivision,
+                node.divisionName,
                 node.material,
                 node.note,
                 node.level,
@@ -533,6 +537,10 @@ public class AssemblyPreviewService {
             Specif22Entity specif
     ) {
 
+        String divisionName = assemblyPreviewRepository
+                .findDivisionNameById(3)
+                .orElse(null);
+
         return new AssemblyHierarchyResponseDto(
                 specif.getId(),
                 specif.getId(),
@@ -544,6 +552,7 @@ public class AssemblyPreviewService {
                         ? specif.getMassa()
                         : 0.0,
                 3,
+                divisionName,
                 null,
                 null,
                 0,
@@ -592,6 +601,7 @@ public class AssemblyPreviewService {
         private Double massa;
 
         private Integer idDivision;
+        private String divisionName;
 
         private String material;
         private String note;

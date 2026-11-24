@@ -14,6 +14,7 @@ public record AssemblyHierarchyResponseDto(
         Integer quantity,
         Double massa,
         Integer idDivision,
+        String divisionName,
         String material,
         String note,
         Integer level,

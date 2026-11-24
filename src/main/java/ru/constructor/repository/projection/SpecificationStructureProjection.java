@@ -8,6 +8,8 @@ public interface SpecificationStructureProjection {
 
     Short getIdDivision();
 
+    String getDivisionName();
+
     String getZone();
 
     String getFormat();
